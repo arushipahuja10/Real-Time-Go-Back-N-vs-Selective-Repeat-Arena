@@ -1,0 +1,21 @@
+{
+  "screenshots": [
+    "idle-1366.png",
+    "mid-loss-1366.png",
+    "final-result-1366.png",
+    "timeline-1366.png",
+    "idle-1920.png",
+    "mid-loss-1920.png",
+    "final-result-1920.png",
+    "timeline-1920.png",
+    "guided-paused-1366.png",
+    "guided-presentation-1366.png",
+    "presentation-1366.png"
+  ],
+  "scenarios": [
+    "1366 idle/loss/recovery/timeline/export",
+    "1920 idle/loss/recovery/timeline/export",
+    "Bundled-font guided/presentation layout refresh"
+  ],
+  "errors": []
+}

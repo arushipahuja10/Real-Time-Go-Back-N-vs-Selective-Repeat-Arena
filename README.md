@@ -1,173 +1,192 @@
 # Real-Time Go-Back-N vs. Selective Repeat Arena
 
-> **Computer Networks — Module 3: Data Link Layer (Sliding-Window Flow Control)**  
-> An interactive, side-by-side animated simulator comparing the **Go-Back-N (GBN)** and **Selective Repeat (SR)** sliding-window protocols under identical channel conditions.
+Computer Networks, Module 3 — Data Link Layer. A live comparative sliding-window
+laboratory for demonstrating flow control, packet loss and recovery.
 
-[![Self-Tests](https://img.shields.io/badge/Self--Tests-3%2F3%20Passing-emerald?style=flat-square)](#-in-browser-self-test-suite)
-[![Pure Vanilla](https://img.shields.io/badge/Stack-HTML5%20%7C%20CSS3%20%7C%20JS%20(ES6)-blue?style=flat-square)](#-architecture--file-structure)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(No%20npm%2C%20no%20build)-purple?style=flat-square)](#-how-to-run)
+Double-click **index.html**. No installation, framework or build step is required.
+The application works directly through file URLs. Instrument Sans and JetBrains
+Mono from Google Fonts are bundled locally, so the intended typography works
+offline. Arial and Consolas remain fallbacks if a font file is unavailable.
+Chrome, Edge and Firefox support the core simulation and canvas export.
 
----
+## Visual reference
 
-## 📸 Visual Showcase
+These Phase 5 capture slots are populated by the browser QA runner. Re-run them
+after changing the presentation. Both target resolutions are included in
+[docs/screenshots](docs/screenshots).
 
-| Dual Arena & Live Scoreboard | Guided Demo Mode & Narration | Final Result & Visual Benchmark |
-| :---: | :---: | :---: |
-| ![Dual Arena Overview](docs/screenshots/arena_scoreboard_overview.png) | ![Guided Demo Narration](docs/screenshots/guided_demo_narration.png) | ![Final Benchmark Modal](docs/screenshots/final_result_benchmark.png) |
-| *Side-by-side arenas with live score counters & crowns* | *Deterministic 7-step narrated scenario with pause/next* | *Pure CSS comparison bar charts & advantage verdict* |
+| Instrument panel | Mirrored sequence-1 loss | Final session report |
+| --- | --- | --- |
+| ![Idle panel at 1366 by 768](docs/screenshots/idle-1366.png) | ![Recovery under mirrored DATA loss](docs/screenshots/mid-loss-1366.png) | ![Metric table and delivery-cost chart](docs/screenshots/final-result-1366.png) |
 
----
+| Space-time view | Projector view | Guided narration |
+| --- | --- | --- |
+| ![Scrollable ladder diagrams](docs/screenshots/timeline-1366.png) | ![Presentation mode](docs/screenshots/presentation-1366.png) | ![Paused guided narration](docs/screenshots/guided-paused-1366.png) |
 
-## 🌟 Key Features
+Optional future recording placeholder: docs/screenshots/guided-demo.webm.
+The exported full-height diagram is separate from the viewport screenshot.
 
-1. **Side-by-Side Dual Arenas**
-   - Real-time simulation of Go-Back-N and Selective Repeat operating in parallel.
-   - Time-based physics clock (`requestAnimationFrame` with delta time $\Delta t$); smooth slider speed adjustment ($0.5\times$ to $2.0\times$) and pause/resume without drift.
+## Design decisions
 
-2. **Synchronized Mirror Drops (Fair Comparison)**
-   - Wire toggle **ON by default**. Dropping DATA packet $N$ in one arena automatically schedules and drops the exact same packet $N$ in the other arena with a linked red pulse and `LINKED` badge.
-   - ACKs are not mirrored, allowing individual resilience tests.
+The interface borrows from oscilloscopes, logic analyzers and technical manuals:
+a slim wordmark bar, two stacked instrument rows, a narrow comparison rail and a
+docked control bar. Warm near-black surfaces, hairlines, small radii and aligned
+monospaced readouts establish hierarchy without gradients, blur or resting
+shadows. Signal colors describe events, not protocol identity: blue DATA, green
+ACK, red loss/discard, amber timeout/retransmission, violet buffered state. Packet
+travel is linear and derives from simulation time; brief state transitions honor
+reduced-motion preferences.
 
-3. **Live Comparison Scoreboard**
-   - Sticky live dashboard between arenas comparing: **Total Transmissions**, **Retransmissions**, **Wasted Bandwidth** (discarded packets), **Completion Time**, **Channel Efficiency %**, and **Packets Lost**.
-   - Dynamic crown indicators (👑) and checkmarks (✓) highlight the winning protocol in each row in real time.
-   - Live dynamic verdict banner (e.g. *"Selective Repeat saved 5 transmissions (-38% link overhead) vs. Go-Back-N"*).
+The desktop layout fits 1366×768 and expands to 1920×1080. Smaller screens use a
+scrolling layout to preserve usable controls. Sequence rulers and delivered strips
+scroll horizontally for long runs; timelines and terminals scroll within their
+own regions. The dock occupies a grid row and cannot cover arena content.
 
-4. **Auto-Demo Mode (The Viva & Presentation Feature)**
-   - Click **✨ Guided Demo** (or press key <kbd>D</kbd>) to run a scripted, deterministic 7-step narrated scenario ($W=4$, 12 packets, Mirror ON).
-   - Explains each milestone in plain English on a narration bar: initial transmission $\to$ mirrored drop of packet 1 $\to$ out-of-order discard vs. buffer $\to$ timeout recovery $\to$ mid-stream loss of packet 6 $\to$ ACK loss resilience $\to$ completion verdict.
-   - Interactive controls: **⏸ Pause**, **⏭ Next Step**, and **✕ Exit** to free play.
+## Operating the laboratory
 
-5. **Final Result Modal with Pure CSS Bar Charts**
-   - Automatically displays when both arenas complete: overall winner banner, animated pure CSS visual horizontal bar charts for transmissions and simulation time, comprehensive metrics table, and a **↺ Run Again** button.
+1. Press Space or Play. Both protocols share the same simulation clock.
+2. Click an in-flight DATA square to drop it. Mirror is enabled by default, so the
+   matching DATA sequence is dropped in the other arena.
+3. Observe GBN discarding out-of-order arrivals while SR stores them in its buffer.
+4. Compare timeout recovery, retransmissions, discarded packets and efficiency.
+5. Switch either arena from Lane to Timeline to inspect the full event history.
+6. Pause to scroll. Download PNG exports the whole run, including offscreen
+   history. The final sheet exports both timelines in one image.
 
-6. **Theory Explainer ("How It Works") & Presentation Mode**
-   - Built-in theory modal with ASCII window diagrams and an 8-dimension GBN vs. SR textbook comparison table.
-   - **Presentation Mode** (Key <kbd>P</kbd>): Enlarges packets ($48\text{px}$) and typography while hiding secondary UI for high-visibility projector displays.
+ACKs are outlined green squares on the lower lane and can also be dropped.
+ACK loss is **never mirrored**. Packets are keyboard focusable; Enter or Space drops
+a focused packet. Terminal rows have native tooltips for their complete messages.
 
-7. **Synthesized Web Audio Effects**
-   - Pure Web Audio API tone synthesis (zero external audio files) for packet send, ACK arrival, packet loss burst, and timeout alerts. Off by default with mute/unmute toggle (Key <kbd>S</kbd>).
+| Key | Action |
+| --- | --- |
+| Space | Play / pause |
+| R | Reset the session, counters and timeline histories |
+| D | Start / exit the seven-step guided demo |
+| M | Toggle mirrored DATA loss |
+| P | Presentation mode: larger packets/type, hides logs and timeline tabs |
+| S | Toggle synthesized Web Audio; off by default |
+| ? | Keyboard reference and protocol verification |
+| Esc | Close a dialog or exit the active guided demo |
 
-8. **In-Browser Self-Test Suite**
-   - Built-in headless verification runner (`window.runTests()` or button in shortcuts modal) asserting deterministic protocol behavior and printing PASS/FAIL to the browser console.
+Native activation takes precedence when a button, range or checkbox has focus.
+Dialogs contain keyboard focus and restore it when dismissed.
 
----
+The guided demo configures W=4, 12 packets, 1× speed and a 3-second timeout. It
+introduces DATA losses at sequences 1 and 6 and a GBN ACK loss, narrating receiver
+behavior and recovery in the arena event strips. Pause preserves the remaining
+narration delay; Next advances one step; Exit continues free play.
 
-## 🚀 How to Run
+| Parameter | Range | Default |
+| --- | --- | --- |
+| Sender window W | 1–7 | 4 |
+| Speed | 0.5×–2× | 1× |
+| Timeout | 1–6 simulation seconds | 3 s |
+| Total packets | 4–20 | 12 |
 
-1. **Zero installation, zero build steps, zero external dependencies.**
-2. Double-click [`index.html`](file:///Users/arushipahuja/coding/cn_project/index.html) or open it directly in any modern browser (Chrome, Edge, Firefox, Safari).
-3. Optionally, serve using Python's built-in HTTP server:
-   ```bash
-   python3 -m http.server 8000
-   # Open http://localhost:8000 in your browser
-   ```
+DATA propagation is 1.6 simulation seconds and ACK return is 1.2. A timeout below
+the round-trip time can trigger retransmission without injected loss.
+Sequence numbers increase without wraparound in this educational simulation.
+Changing total packets starts a clean session; the packet-count slider is disabled
+during playback. Window size, speed and timeout remain adjustable live.
 
----
+## Protocol correctness
 
-## ⌨️ Controls & Keyboard Shortcuts
+| Property | Go-Back-N | Selective Repeat |
+| --- | --- | --- |
+| ACK(n) | Confirms every packet ≤ n | Confirms only packet n |
+| Receiver window | 1 | W |
+| Out-of-order DATA | Discard; re-ACK last in-order packet | Buffer within receive window |
+| Sender timer | One timer for oldest unacknowledged packet | Independent timer per packet |
+| Timeout recovery | All outstanding packets in the window | Only the expired packet |
+| Delivery | In order | In-order buffered prefix |
+| m-bit sequence bound | W ≤ 2ᵐ − 1 | W ≤ 2ᵐ⁻¹ |
+| Trade-off | Simple receiver, more link work under DATA loss | Receiver memory, selective recovery |
 
-| Shortcut | Action | Description |
-| :---: | :--- | :--- |
-| <kbd>Space</kbd> | **Play / Pause** | Toggle simulation clock playback smoothly |
-| <kbd>R</kbd> | **Reset** | Clear channels, zero counters, and restore initial state |
-| <kbd>D</kbd> | **Guided Demo** | Start or exit the 7-step narrated viva walkthrough |
-| <kbd>M</kbd> | **Toggle Mirror** | Turn synchronized cross-arena packet drops on or off |
-| <kbd>P</kbd> | **Presentation Mode** | Enlarge fonts/packets ($48\text{px}$) for projector view |
-| <kbd>S</kbd> | **Audio Effects** | Toggle synthesized Web Audio sound effects on/off |
-| <kbd>?</kbd> | **Shortcuts Modal** | Open keyboard cheat-sheet and self-test panel |
-| <kbd>Esc</kbd> | **Dismiss / Exit** | Close any open modal or exit active Guided Demo |
+Efficiency is unique delivered packets / total DATA transmissions. The discarded
+metric includes redundant already-delivered SR arrivals after an ACK is lost;
+SR's zero-waste advantage applies to the demonstrated DATA-loss scenario, not
+every possible ACK-loss pattern. Completion times use the simulation clock.
+Live deltas are absolute differences; a green underline and SVG check identify the
+better value. Elapsed time gets a winner after both protocols finish.
 
-### Global Sliders
-- **Window Size ($W$):** $1$ to $7$ (default: $4$) — dynamically adjusts sender & receiver window bounds.
-- **Speed:** $0.5\times$ to $2.0\times$ (default: $1.0\times$) — simulation time scaling.
-- **Timeout:** $1.0\text{s}$ to $6.0\text{s}$ (default: $3.0\text{s}$) — retransmission timer countdown.
-- **Total Packets:** $4$ to $20$ (default: $12$) — total sequence numbers to transmit.
+## Files and boundaries
 
----
+| File | Responsibility |
+| --- | --- |
+| index.html | Layout, instrument blocks, controls, drawers and canvases |
+| styles.css | Tokens, responsive grids, packet/cell states, reduced motion |
+| engine.js | EventBus, SimConfig, SimClock, Packet and Web Audio |
+| gbn.js | GBN state, cumulative ACKs, single base timer and existing renderer |
+| sr.js | SR state, individual ACKs, packet timers, buffering and renderer |
+| main.js | Transport, parameters, scoreboard, demo, results and self-tests |
+| view.js | Presentation adapter, SVG icons, terminal formatting, linear packet paint, timeline recording/export and focus handling |
+| tests/qa.cjs | Optional development-only headless browser QA |
+| tests/audit.cjs | Fonts, contrast, banned styles, native motion and offline QA |
+| assets/fonts | Bundled Google Fonts and their OFL licenses |
+| AGENTS.md | Maintenance rules and verification instructions |
 
-## ⚡ Protocol Implementation Rules
+Scripts load in that order through global browser modules. Protocols publish log,
+stat, done and mirror:drop events. The view subscribes to those events and the
+clock. Its packet-position pass runs after protocol ticks, changing only DOM paint.
+The timeline adapter parses existing log messages into flights and receiver/timeout
+marks; preserve those messages or update the adapter when changing logging in a
+future phase. All events are recorded; canvas repainting is limited to 30 Hz.
+Reset clears recordings, count-up animations and packet nodes.
 
-### 1. Go-Back-N (GBN)
-- **Cumulative ACKs:** An `ACK(n)` acknowledges all packets $\le n$.
-- **Single Base Timer:** Exactly one logical timer runs for the oldest unACKed packet (`base`). Visualized as an animated circular gauge inside the sender box.
-- **Receiver Policy (Window = 1):** Discards any out-of-order packet ($seq \ne expectedSeq$) and re-sends duplicate `ACK(expectedSeq - 1)`.
-- **Retransmission Scope:** On timeout of `base`, sender retransmits the **entire window** $[base \dots nextSeq - 1]$.
-- **Wasted Bandwidth:** Increments on every out-of-order packet discarded by receiver.
+**Phase 5 adds no logic hooks. engine.js, gbn.js and sr.js remain unchanged.**
+The maintenance hard rule is in [AGENTS.md](AGENTS.md).
 
-### 2. Selective Repeat (SR)
-- **Individual ACKs:** An `ACK(n)` acknowledges *strictly* packet $n$.
-- **Independent Timers ($N$ Timers):** Every unACKed packet in flight maintains its own independent timer countdown in simulation time. Each window cell displays an independent mini timer bar.
-- **Receiver Buffering (Window = $W$):** Out-of-order arrivals within $[rcvBase \dots rcvBase + W - 1]$ are stored in visual buffer slots (purple chips), leaving gaps empty (dashed borders).
-- **In-Order Buffer Flush:** Once the missing sequence gap arrives, the receiver delivers all consecutive buffered packets in order to the delivered strip and advances $rcvBase$.
-- **Selective Retransmission:** On timeout of packet $n$, sender retransmits **only packet $n$** (amber `RETX` badge) without affecting other packets.
-- **Duplicate Prevention:** Already-delivered packets receiving duplicate retransmissions (due to lost ACKs) are immediately re-ACKed without duplicate delivery.
+## Verification
 
----
+Open the browser console and run:
 
-## 📊 Comprehensive GBN vs. SR Comparison Table
+~~~js
+runTests()
+~~~
 
-| Dimension | Go-Back-N (GBN) | Selective Repeat (SR) |
-| :--- | :--- | :--- |
-| **ACK Semantic** | **Cumulative**: `ACK(n)` confirms all packets $\le n$ | **Individual**: `ACK(n)` confirms strictly packet $n$ |
-| **Receiver Window Size** | $1$ (no buffering capability) | $W$ (buffers packets in $[rcvBase \dots rcvBase + W - 1]$) |
-| **Out-of-Order Policy** | **Discard immediately**; re-send duplicate ACK | **Store in buffer slot**; deliver prefix when gap fills |
-| **Sender Timers** | **1 Logical Timer** for oldest unACKed packet (`base`) | **$N$ Independent Timers** (one per in-flight packet) |
-| **Retransmission Scope** | **Entire Window** $[base \dots nextSeq - 1]$ | **Only the specific timed-out packet** |
-| **Max Window Size** | $W \le 2^m - 1$ ($m$-bit sequence space) | $W \le 2^{m-1}$ (prevents old/new window ambiguity) |
-| **Loss Bandwidth Efficiency** | **Lower**: Wastes capacity re-sending intact packets | **Higher**: Optimal link efficiency under loss |
-| **Hardware / Memory Cost** | **Minimal**: Simple receiver state (`expectedSeq`) | **Moderate**: Requires receiver buffer & re-ordering |
-| **Real-World Prototyping** | Embedded low-power sensors, legacy links | TCP Selective ACKs (SACK), Satellite channels |
+Or press ? and choose **Run Protocol Verification**. The runner resets the session
+and must return three passing results:
 
----
+1. W=4, total=4, lose DATA[1]: GBN retransmits three outstanding packets; SR one.
+2. GBN discards out-of-order packets; SR buffers those arrivals with zero waste.
+3. With a 4.5-second timeout, GBN tolerates ACK[0] loss when a later cumulative
+   ACK arrives before the deadline.
 
-## 🧪 In-Browser Self-Test Suite
+Development-only QA requires Playwright and Chrome/Edge; the app requires neither.
+With Playwright resolvable from Node, run:
 
-The simulation includes a built-in automated test suite (`window.runTests()`) accessible from the browser console or the shortcuts modal (<kbd>?</kbd> $\to$ **Run Protocol Verification**):
+~~~powershell
+node tests/qa.cjs
+node tests/audit.cjs
+$env:QA_FULL = '1'
+node tests/qa.cjs
+~~~
 
-1. **Test 1 — Recovery Scope ($W=4$, Drop Seq 1):**  
-   Asserts that GBN retransmits $3$ packets ($[1, 2, 3]$) on timeout, while SR retransmits strictly $1$ packet ($seq=1$).
-2. **Test 2 — Receiver Buffering & Wasted Bandwidth:**  
-   Asserts that GBN registers $\ge 2$ wasted packets from out-of-order discards, while SR achieves $0$ wasted packets by buffering arrivals.
-3. **Test 3 — Cumulative ACK Resilience in GBN:**  
-   Asserts that dropping `ACK(0)` while `ACK(1)` arrives safely advances the sender base with $0$ timeouts incurred.
+Use NODE_PATH for an existing Playwright package directory and BROWSER_PATH for an
+alternate browser executable. QA opens index.html through file URLs, uses a paused
+virtual browser clock for repeatable full runs and produces PNGs plus
+[qa-report.json](docs/screenshots/qa-report.json). It checks both target resolutions,
+W=1–7 at 0.5×/2×, 20-packet runs, DATA and ACK drops, demo controls, pause/resume,
+DOM/subscription cleanup, presentation, focus containment and PNG downloads.
 
----
+Manual presentation checklist:
 
-## 📂 Architecture & File Structure
+- At both target sizes inspect idle, mid-loss and final report: no page scroll,
+  clipped labels, overlapping lanes or controls covering content.
+- Drop DATA[1] with Mirror on, then turn Mirror off and drop only one arena.
+- Drop ACK[0]; use a timeout above round-trip delay for the cumulative-ACK demo.
+- Pause/resume repeatedly, reset mid-run and start again; no stale report or packets.
+- Run D end to end; check Pause, Next, Exit, P, S, ? and How it works.
+- Pause and scroll both timelines; export one diagram and the combined PNG.
+- Navigate with Tab; confirm focus rings and dialog focus return.
+- Enable reduced motion and disconnect networking; the simulator remains usable.
 
-```text
-cn_project/
-├── index.html     # Semantic layout: header, legend, dual arenas, live scoreboard, modals, footer
-├── styles.css     # CSS custom properties, glassmorphism theme, animations, presentation overrides
-├── engine.js      # Simulation core: EventBus, SimClock (rAF+dt), SimConfig, Sound, Packet model
-├── gbn.js         # Go-Back-N implementation: cumulative ACKs, single base timer gauge, window recovery
-├── sr.js          # Selective Repeat implementation: per-packet timers, buffer array & flush, selective retx
-├── main.js        # Showcase layer: live scoreboard, auto-demo controller, presentation mode, runTests()
-├── README.md      # Comprehensive documentation, viva guide & comparison table
-└── docs/
-    └── screenshots/  # Screenshot & GIF demonstration placeholders
-```
+Font sources: [Instrument Sans](https://github.com/google/fonts/tree/main/ofl/instrumentsans)
+and [JetBrains Mono](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono).
+Both are distributed under the SIL Open Font License; license texts accompany
+the local font files in assets/fonts.
 
----
+## Student information
 
-## 🎯 Learning Outcomes (Module 3: Data Link Layer)
-
-This project concretely demonstrates the fundamental trade-offs in Data Link Layer flow control:
-
-1. **Bandwidth-Delay Product (BDP) Utilization:**  
-   Why Stop-and-Wait is inefficient ($U \ll 1$) and how sliding-window pipelining fills the propagation channel with up to $W$ in-flight packets.
-2. **Memory vs. Bandwidth Trade-Off:**  
-   GBN minimizes receiver memory (zero buffer slots) at the cost of wasting network bandwidth on redundant retransmissions. SR preserves network bandwidth by investing receiver memory in buffering out-of-order packets.
-3. **Window Size Bounds & Sequence Ambiguity:**  
-   Why GBN requires $W \le 2^m - 1$ while SR requires $W \le 2^{m-1}$ to prevent receiver window overlap with the previous transmission cycle.
-4. **Cumulative vs. Selective Acknowledgment:**  
-   How cumulative ACKs provide inherent fault tolerance against lost ACKs, while selective ACKs isolate individual packet loss events without cascading timeouts.
-
----
-
-## 👤 Author Information
-
-- **Student Name:** Arushi Pahuja  
-- **Roll Number:** 10  
-- **Course:** Computer Networks (Module 3 — Data Link Layer: Sliding Window Protocols)  
+Arushi Pahuja · Roll No. 10
+Computer Networks, Module 3 — Data Link Layer / Sliding-Window Protocols

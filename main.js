@@ -7,9 +7,9 @@
  * Responsibilities:
  *  1. Protocol lifecycle: init, play/pause, reset, slider bindings.
  *  2. Mirror Drops toggle: synchronized cross-arena loss.
- *  3. Live Comparison Scoreboard: side-by-side counters, crown indicators,
- *     dynamic one-line verdicts, and pure CSS bar charts.
- *  4. Final Result Modal: comprehensive metrics breakdown & "Run Again".
+ *  3. Live Comparison Scoreboard: side-by-side counters, SVG winner checks,
+ *     dynamic one-line verdicts, and canvas comparison charts.
+ *  4. Final Result Sheet: comprehensive metrics breakdown & "Run Again".
  *  5. Guided Auto-Demo Mode: deterministic 7-step narrated scenario with
  *     Pause / Next / Exit controls.
  *  6. Presentation Mode (Key: P), Web Audio sound effects (Key: S),
@@ -39,6 +39,8 @@
   let isRunning = false;
   let gbnDone = false;
   let srDone = false;
+  let resultTimerId = null;
+  let resumeFrameId = null;
 
   let lastGbnStats = { sent: 0, retransmissions: 0, acks: 0, timeouts: 0, lost: 0, wasted: 0, efficiency: '0.0%', completionTime: null };
   let lastSrStats  = { sent: 0, retransmissions: 0, acks: 0, timeouts: 0, lost: 0, wasted: 0, efficiency: '0.0%', completionTime: null };
@@ -48,6 +50,8 @@
   let demoStep = 0;
   let demoPaused = false;
   let demoTimerId = null;
+  let demoTimerRemaining = 0;
+  let demoTimerDue = 0;
 
   /* =========================================================
    * DOM REFERENCES
@@ -79,10 +83,6 @@
       btnPresentation: document.getElementById('btn-presentation'),
       btnSound:        document.getElementById('btn-sound'),
       btnShortcuts:    document.getElementById('btn-shortcuts'),
-
-      // Welcome Hint
-      welcomeHint:     document.getElementById('welcome-hint'),
-      btnHintDismiss:  document.getElementById('btn-hint-dismiss'),
 
       // Guided Demo Bar
       demoBar:         document.getElementById('guided-narration-bar'),
@@ -137,18 +137,8 @@
       compClose:       document.getElementById('modal-close'),
       compTbody:       document.getElementById('comp-tbody'),
       btnRunAgain:     document.getElementById('btn-run-again'),
-      btnModalDismiss: document.getElementById('btn-modal-dismiss'),
       winnerHeading:   document.getElementById('winner-heading'),
       winnerSub:       document.getElementById('winner-sub'),
-
-      barTxGbn:        document.getElementById('bar-tx-gbn'),
-      barTxSr:         document.getElementById('bar-tx-sr'),
-      barTxGbnVal:     document.getElementById('bar-tx-gbn-val'),
-      barTxSrVal:      document.getElementById('bar-tx-sr-val'),
-      barTimeGbn:      document.getElementById('bar-time-gbn'),
-      barTimeSr:       document.getElementById('bar-time-sr'),
-      barTimeGbnVal:   document.getElementById('bar-time-gbn-val'),
-      barTimeSrVal:    document.getElementById('bar-time-sr-val'),
 
       explainerModal:  document.getElementById('explainer-modal'),
       explainerClose:  document.getElementById('explainer-close'),
@@ -186,35 +176,43 @@
    * PLAY / PAUSE
    * ========================================================= */
   function togglePlay() {
-    dismissWelcomeHint();
 
     if (isRunning) {
+      cancelAnimationFrame(resumeFrameId);
       E().SimClock.pause();
       isRunning = false;
       if (dom.playBtn) {
-        dom.playBtn.textContent = '▶ Play';
+        global.PanelView.button(dom.playBtn, 'play', 'Play');
         dom.playBtn.classList.remove('btn-pause');
         dom.playBtn.classList.add('btn-play');
       }
       if (demoActive) {
+        demoTimerRemaining = Math.max(0, demoTimerDue - performance.now());
+        clearTimeout(demoTimerId);
         demoPaused = true;
-        if (dom.btnDemoPause) dom.btnDemoPause.textContent = '▶ Resume';
+        if (dom.btnDemoPause) global.PanelView.button(dom.btnDemoPause, 'play', 'Resume');
       }
     } else {
       global.GBN.start();
       global.SR.start();
-      E().SimClock.start();
       isRunning = true;
+      // Let any previously queued clock frame observe pause before resuming.
+      resumeFrameId = requestAnimationFrame(() => {
+        if (isRunning) E().SimClock.start();
+      });
       if (dom.playBtn) {
-        dom.playBtn.textContent = '⏸ Pause';
+        global.PanelView.button(dom.playBtn, 'pause', 'Pause');
         dom.playBtn.classList.remove('btn-play');
         dom.playBtn.classList.add('btn-pause');
       }
       if (demoActive) {
         demoPaused = false;
-        if (dom.btnDemoPause) dom.btnDemoPause.textContent = '⏸ Pause';
+        if (dom.btnDemoPause) global.PanelView.button(dom.btnDemoPause, 'pause', 'Pause');
+        if (demoTimerRemaining > 0 && demoStep < DEMO_SCRIPT.length) scheduleDemoStep(demoTimerRemaining);
       }
     }
+    dom.totalSlider.disabled = isRunning;
+    global.PanelView.refresh();
   }
 
   /* =========================================================
@@ -222,11 +220,14 @@
    * ========================================================= */
   function resetAll() {
     exitGuidedDemo(false);
+    clearTimeout(resultTimerId);
+    cancelAnimationFrame(resumeFrameId);
 
     // Stop clock first
     E().SimClock.pause();
     E().SimClock.reset();
     isRunning = false;
+    dom.totalSlider.disabled = false;
     gbnDone = false;
     srDone = false;
 
@@ -239,7 +240,7 @@
 
     // Reset button label
     if (dom.playBtn) {
-      dom.playBtn.textContent = '▶ Play';
+      global.PanelView.button(dom.playBtn, 'play', 'Play');
       dom.playBtn.classList.remove('btn-pause');
       dom.playBtn.classList.add('btn-play');
     }
@@ -249,6 +250,7 @@
 
     // Hide comparison modal
     if (dom.compModal) dom.compModal.classList.add('hidden');
+    if (global.PanelView) global.PanelView.reset();
   }
 
   /* =========================================================
@@ -290,11 +292,8 @@
       const n = parseInt(dom.totalSlider.value, 10);
       cfg.totalPackets = n;
       dom.totalVal.textContent = n;
-      if (!isRunning) {
-        global.GBN.reset();
-        global.SR.reset();
-        resetScoreboard();
-      }
+      // Packet count defines the protocol fixture, so resize via a clean session.
+      resetAll();
     });
     dom.totalVal.textContent = dom.totalSlider.value;
 
@@ -304,15 +303,6 @@
       dom.mirrorToggle.addEventListener('change', () => {
         cfg.mirrorDrops = dom.mirrorToggle.checked;
       });
-    }
-  }
-
-  /* =========================================================
-   * WELCOME HINT DISMISSAL
-   * ========================================================= */
-  function dismissWelcomeHint() {
-    if (dom.welcomeHint && !dom.welcomeHint.classList.contains('hidden')) {
-      dom.welcomeHint.classList.add('hidden');
     }
   }
 
@@ -366,7 +356,7 @@
     diffs.forEach(d => { if (d) d.textContent = '–'; });
 
     if (dom.verdictText) {
-      dom.verdictText.textContent = 'Run both protocols or start Guided Demo to see real-time efficiency metrics.';
+      dom.verdictText.textContent = 'Start a transmission, then introduce loss to compare recovery.';
     }
   }
 
@@ -375,20 +365,20 @@
     const s = lastSrStats;
 
     // 1. Sent
-    if (dom.scGbnSent) dom.scGbnSent.textContent = g.sent;
-    if (dom.scSrSent)  dom.scSrSent.textContent  = s.sent;
+    if (dom.scGbnSent) global.PanelView.count(dom.scGbnSent, g.sent);
+    if (dom.scSrSent)  global.PanelView.count(dom.scSrSent, s.sent);
     _applyWinner(g.sent, s.sent, 'lower', dom.crGbnSent, dom.crSrSent, dom.diffSent, 'saved by');
 
     // 2. Retransmissions
-    if (dom.scGbnRetx) dom.scGbnRetx.textContent = g.retransmissions;
-    if (dom.scSrRetx)  dom.scSrRetx.textContent  = s.retransmissions;
+    if (dom.scGbnRetx) global.PanelView.count(dom.scGbnRetx, g.retransmissions);
+    if (dom.scSrRetx)  global.PanelView.count(dom.scSrRetx, s.retransmissions);
     _applyWinner(g.retransmissions, s.retransmissions, 'lower', dom.crGbnRetx, dom.crSrRetx, dom.diffRetx, 'fewer in');
 
     // 3. Wasted Bandwidth
     const gWaste = g.wasted || 0;
     const sWaste = s.wasted || 0;
-    if (dom.scGbnWasted) dom.scGbnWasted.textContent = gWaste;
-    if (dom.scSrWasted)  dom.scSrWasted.textContent  = sWaste;
+    if (dom.scGbnWasted) global.PanelView.count(dom.scGbnWasted, gWaste);
+    if (dom.scSrWasted)  global.PanelView.count(dom.scSrWasted, sWaste);
     _applyWinner(gWaste, sWaste, 'lower', dom.crGbnWasted, dom.crSrWasted, dom.diffWasted, 'wasted in');
 
     // 4. Completion Time
@@ -408,10 +398,10 @@
     }
 
     // 6. Lost Packets
-    if (dom.scGbnLost) dom.scGbnLost.textContent = g.lost;
-    if (dom.scSrLost)  dom.scSrLost.textContent  = s.lost;
+    if (dom.scGbnLost) global.PanelView.count(dom.scGbnLost, g.lost);
+    if (dom.scSrLost)  global.PanelView.count(dom.scSrLost, s.lost);
     if (g.lost === s.lost) {
-      if (dom.diffLost) dom.diffLost.textContent = 'Identical Channel Loss';
+      if (dom.diffLost) dom.diffLost.textContent = '0';
       if (dom.crGbnLost) dom.crGbnLost.classList.add('hidden');
       if (dom.crSrLost)  dom.crSrLost.classList.add('hidden');
     } else {
@@ -432,7 +422,7 @@
     const diff = Math.abs(valGbn - valSr);
 
     if (diff === 0) {
-      if (diffEl) diffEl.textContent = 'Tied';
+      if (diffEl) diffEl.textContent = '0';
       return;
     }
 
@@ -441,10 +431,10 @@
 
     if (gbnWins) {
       if (crownGbn) crownGbn.classList.remove('hidden');
-      if (diffEl) diffEl.textContent = `+${diff.toFixed(suffix ? 1 : 0)}${suffix} ${label} GBN`;
+      if (diffEl) diffEl.textContent = diff.toFixed(suffix ? 1 : 0) + suffix;
     } else if (srWins) {
       if (crownSr) crownSr.classList.remove('hidden');
-      if (diffEl) diffEl.textContent = `+${diff.toFixed(suffix ? 1 : 0)}${suffix} ${label} SR`;
+      if (diffEl) diffEl.textContent = diff.toFixed(suffix ? 1 : 0) + suffix;
     }
   }
 
@@ -455,7 +445,7 @@
     const gWaste = g.wasted || 0;
 
     if (g.lost === 0 && s.lost === 0) {
-      dom.verdictText.textContent = 'Both protocols operating at 100% efficiency. Click any moving packet to test loss recovery!';
+      dom.verdictText.textContent = 'No loss injected. Click DATA or ACK to compare recovery costs.';
     } else if (diffRetx > 0) {
       const pctSaved = g.sent > 0 ? Math.round((diffRetx / g.sent) * 100) : 0;
       dom.verdictText.textContent = `Selective Repeat saved ${diffRetx} transmission(s) (-${pctSaved}% link overhead) vs. Go-Back-N.`;
@@ -486,10 +476,17 @@
   function _checkBothDone() {
     if (!gbnDone || !srDone) return;
 
-    setTimeout(() => {
+    E().SimClock.pause();
+    isRunning = false;
+    dom.totalSlider.disabled = false;
+    updateScoreboard();
+    global.PanelView.refresh();
+    clearTimeout(resultTimerId);
+    resultTimerId = setTimeout(() => {
+      if (!gbnDone || !srDone) return;
       _showFinalResultModal();
       isRunning = false;
-      dom.playBtn.textContent = '▶ Play';
+      global.PanelView.button(dom.playBtn, 'play', 'Play');
       dom.playBtn.classList.remove('btn-pause');
       dom.playBtn.classList.add('btn-play');
     }, 700);
@@ -508,7 +505,7 @@
     const savedTx = gTx - sTx;
 
     if (savedTx > 0) {
-      if (dom.winnerHeading) dom.winnerHeading.textContent = 'Selective Repeat Wins!';
+      if (dom.winnerHeading) dom.winnerHeading.textContent = 'Selective Repeat leads';
       if (dom.winnerSub) {
         dom.winnerSub.textContent = `SR saved ${savedTx} transmission(s) and avoided discarding out-of-order packets through receiver buffering.`;
       }
@@ -524,78 +521,23 @@
       }
     }
 
-    // 2. Pure CSS Visual Bar Charts
-    const maxTx = Math.max(gTx, sTx, 1);
-    const gPct = Math.round((gTx / maxTx) * 100);
-    const sPct = Math.round((sTx / maxTx) * 100);
-
-    if (dom.barTxGbn) dom.barTxGbn.style.width = gPct + '%';
-    if (dom.barTxSr)  dom.barTxSr.style.width  = sPct + '%';
-    if (dom.barTxGbnVal) dom.barTxGbnVal.textContent = gTx;
-    if (dom.barTxSrVal)  dom.barTxSrVal.textContent  = sTx;
-
-    const gTime = g.completionTime || 1;
-    const sTime = s.completionTime || 1;
-    const maxTime = Math.max(gTime, sTime, 0.1);
-    const gTimePct = Math.round((gTime / maxTime) * 100);
-    const sTimePct = Math.round((sTime / maxTime) * 100);
-
-    if (dom.barTimeGbn) dom.barTimeGbn.style.width = gTimePct + '%';
-    if (dom.barTimeSr)  dom.barTimeSr.style.width  = sTimePct + '%';
-    if (dom.barTimeGbnVal) dom.barTimeGbnVal.textContent = gTime.toFixed(1) + 's';
-    if (dom.barTimeSrVal)  dom.barTimeSrVal.textContent  = sTime.toFixed(1) + 's';
-
-    // 3. Metrics Breakdown Table
-    const rows = [
-      {
-        metric: 'Total Transmissions',
-        gbn: gTx,
-        sr: sTx,
-        adv: sTx < gTx ? `SR saved ${gTx - sTx} packets` : (gTx < sTx ? `GBN saved ${sTx - gTx}` : 'Equal')
-      },
-      {
-        metric: 'Retransmissions',
-        gbn: g.retransmissions || 0,
-        sr: s.retransmissions || 0,
-        adv: s.retransmissions < g.retransmissions ? `SR avoided ${(g.retransmissions || 0) - (s.retransmissions || 0)} resent pkts` : 'Equal'
-      },
-      {
-        metric: 'Wasted Bandwidth (Discarded)',
-        gbn: g.wasted || 0,
-        sr: s.wasted || 0,
-        adv: (g.wasted || 0) > (s.wasted || 0) ? `SR buffered in memory (0 wasted)` : 'Equal'
-      },
-      {
-        metric: 'Completion Time',
-        gbn: (g.completionTime ? g.completionTime.toFixed(1) : '–') + 's',
-        sr: (s.completionTime ? s.completionTime.toFixed(1) : '–') + 's',
-        adv: sTime < gTime ? `SR was ${(gTime - sTime).toFixed(1)}s faster` : (gTime < sTime ? `GBN ${(sTime - gTime).toFixed(1)}s faster` : 'Tied')
-      },
-      {
-        metric: 'Channel Efficiency',
-        gbn: g.efficiency || '–',
-        sr: s.efficiency || '–',
-        adv: parseFloat(s.efficiency) > parseFloat(g.efficiency) ? `SR +${(parseFloat(s.efficiency) - parseFloat(g.efficiency)).toFixed(1)}%` : 'Tied'
-      },
-      {
-        metric: 'Channel Drops Injected',
-        gbn: g.lost || 0,
-        sr: s.lost || 0,
-        adv: 'Fair Identical Loss'
-      }
+    // Winner per metric; the view draws the direct-labelled canvas chart.
+    const metrics = [
+      ['Transmissions', gTx, sTx, 'lower', ''],
+      ['Retransmissions', g.retransmissions || 0, s.retransmissions || 0, 'lower', ''],
+      ['Discarded / redundant', g.wasted || 0, s.wasted || 0, 'lower', ''],
+      ['Completion time', g.completionTime, s.completionTime, 'lower', 's'],
+      ['Channel efficiency', parseFloat(g.efficiency) || 0, parseFloat(s.efficiency) || 0, 'higher', '%'],
+      ['Injected loss', g.lost || 0, s.lost || 0, 'lower', '']
     ];
-
+    const format = (n, unit) => (unit ? Number(n).toFixed(1) : n) + unit;
     if (dom.compTbody) {
-      dom.compTbody.innerHTML = rows.map(r => `
-        <tr>
-          <td><strong>${r.metric}</strong></td>
-          <td class="comp-gbn">${r.gbn}</td>
-          <td class="comp-sr">${r.sr}</td>
-          <td style="text-align:right" class="comp-adv">${r.adv}</td>
-        </tr>
-      `).join('');
+      dom.compTbody.innerHTML = metrics.map(([label, gv, sv, mode, unit]) => {
+        const winner = gv === sv ? 'Equal' : ((mode === 'lower' ? gv < sv : gv > sv) ? 'GBN' : 'SR');
+        return '<tr><td>' + label + '</td><td>' + format(gv, unit) + '</td><td>' + format(sv, unit) + '</td><td class="comp-adv">' + winner + (winner === 'Equal' ? '' : ' / ' + format(Math.abs(gv-sv), unit)) + '</td></tr>';
+      }).join('');
     }
-
+    global.PanelView.drawResult(g, s);
     dom.compModal.classList.remove('hidden');
   }
 
@@ -607,7 +549,7 @@
     {
       stepNum: 1,
       title: 'Step 1 / 7: Initial Window Transmission',
-      narration: 'Initial Transmission — Window W=4. Both senders transmit packets 0, 1, 2, 3 across the channel simultaneously.',
+      narration: 'Initial transmission / W=4. Both senders fill the link with DATA 0–3, using the same injection spacing and propagation delay.',
       action: () => {
         // Setup initial demo state
         E().SimConfig.windowSize = 4;
@@ -660,7 +602,7 @@
     {
       stepNum: 4,
       title: 'Step 4 / 7: Timeout & Retransmission Recovery',
-      narration: 'Timeout on Packet 1! GBN goes back and retransmits the ENTIRE window (1, 2, 3). Selective Repeat resends ONLY packet 1!',
+      narration: 'SR’s packet-1 timer expires first. GBN’s base timer later triggers recovery of every outstanding packet; SR resends only packet 1.',
       action: () => {
         // Observers watch timeout toast and selective retransmit
       },
@@ -689,7 +631,7 @@
     {
       stepNum: 7,
       title: 'Step 7 / 7: Demo Complete & Verdict',
-      narration: 'Demo Completed! Observe the Live Scoreboard: Selective Repeat achieved higher efficiency with zero wasted retransmissions.',
+      narration: 'Read the final report: receiver buffering reduces retransmission work under these DATA losses. Compare the final metrics.',
       action: () => {
         // Allow transfers to finish naturally and present final scoreboard
       },
@@ -698,7 +640,8 @@
   ];
 
   function startGuidedDemo() {
-    dismissWelcomeHint();
+    // Configure the fixture before resetting per-packet records.
+    Object.assign(E().SimConfig, {windowSize:4,totalPackets:12,speed:1,timeoutDuration:3,mirrorDrops:true});
     resetAll();
 
     demoActive = true;
@@ -706,7 +649,7 @@
     demoPaused = false;
 
     if (dom.demoBar) dom.demoBar.classList.remove('hidden');
-    if (dom.btnDemoPause) dom.btnDemoPause.textContent = '⏸ Pause';
+    if (dom.btnDemoPause) global.PanelView.button(dom.btnDemoPause, 'pause', 'Pause');
 
     advanceDemoStep();
   }
@@ -715,6 +658,7 @@
     if (!demoActive || demoStep >= DEMO_SCRIPT.length) return;
 
     clearTimeout(demoTimerId);
+    demoTimerRemaining = 0;
     const step = DEMO_SCRIPT[demoStep];
 
     if (dom.demoStepNum) dom.demoStepNum.textContent = `Step ${step.stepNum} / ${DEMO_SCRIPT.length}`;
@@ -729,28 +673,23 @@
     demoStep++;
 
     if (step.nextDelay > 0 && demoStep < DEMO_SCRIPT.length) {
-      demoTimerId = setTimeout(() => {
-        if (demoActive && !demoPaused) {
-          advanceDemoStep();
-        }
-      }, step.nextDelay);
+      scheduleDemoStep(step.nextDelay);
     }
+  }
+
+  function scheduleDemoStep(delay) {
+    clearTimeout(demoTimerId);
+    demoTimerRemaining = delay;
+    demoTimerDue = performance.now() + delay;
+    if (demoPaused) return;
+    demoTimerId = setTimeout(() => {
+      if (demoActive && !demoPaused) advanceDemoStep();
+    }, delay);
   }
 
   function pauseGuidedDemo() {
     if (!demoActive) return;
-
-    if (demoPaused) {
-      demoPaused = false;
-      if (dom.btnDemoPause) dom.btnDemoPause.textContent = '⏸ Pause';
-      if (!isRunning) togglePlay();
-      advanceDemoStep();
-    } else {
-      demoPaused = true;
-      if (dom.btnDemoPause) dom.btnDemoPause.textContent = '▶ Resume';
-      clearTimeout(demoTimerId);
-      if (isRunning) togglePlay();
-    }
+    togglePlay();
   }
 
   function exitGuidedDemo(keepRunning = true) {
@@ -758,6 +697,7 @@
 
     demoActive = false;
     clearTimeout(demoTimerId);
+    demoTimerRemaining = 0;
     if (dom.demoBar) dom.demoBar.classList.add('hidden');
 
     if (!keepRunning && isRunning) {
@@ -772,13 +712,16 @@
     const isPresenting = document.body.classList.toggle('presentation-mode');
     if (dom.btnPresentation) {
       dom.btnPresentation.classList.toggle('active', isPresenting);
+      dom.btnPresentation.setAttribute('aria-pressed', String(isPresenting));
+      global.PanelView.presentation(isPresenting);
     }
   }
 
   function toggleSound() {
     const enabled = E().Sound ? E().Sound.toggle() : false;
     if (dom.btnSound) {
-      dom.btnSound.textContent = enabled ? '🔊 Sound' : '🔇 Sound';
+      global.PanelView.button(dom.btnSound, 'sound', enabled ? 'Sound on' : 'Sound');
+      dom.btnSound.setAttribute('aria-pressed', String(enabled));
       dom.btnSound.classList.toggle('active', enabled);
     }
   }
@@ -811,21 +754,16 @@
       });
     }
 
-    // Final Result Modal Close & Run Again
+    // Final Result Sheet Close & Run Again
     if (dom.compClose && dom.compModal) {
       dom.compClose.addEventListener('click', () => {
-        dom.compModal.classList.add('hidden');
-      });
-    }
-    if (dom.btnModalDismiss && dom.compModal) {
-      dom.btnModalDismiss.addEventListener('click', () => {
         dom.compModal.classList.add('hidden');
       });
     }
     if (dom.btnRunAgain) {
       dom.btnRunAgain.addEventListener('click', () => {
         resetAll();
-        setTimeout(togglePlay, 100);
+        togglePlay();
       });
     }
 
@@ -838,10 +776,7 @@
       }
     });
 
-    // Dismiss welcome hint button
-    if (dom.btnHintDismiss) {
-      dom.btnHintDismiss.addEventListener('click', dismissWelcomeHint);
-    }
+
   }
 
   /* =========================================================
@@ -853,6 +788,8 @@
     document.addEventListener('keydown', (e) => {
       // Ignore if typing inside input fields (if any exist)
       if (e.target && (e.target.tagName === 'INPUT' && e.target.type === 'text')) return;
+      if (document.querySelector('.modal-backdrop:not(.hidden)') && e.key !== 'Escape') return;
+      if (e.key === ' ' && e.target.matches('button,input,a')) return;
 
       switch (e.key) {
         case ' ':
@@ -938,7 +875,7 @@
           dom.selfTestOutput.classList.remove('hidden');
           dom.selfTestOutput.innerHTML = results.map(r => `
             <div class="test-row ${r.pass ? 'pass' : 'fail'}">
-              <span>${r.pass ? '✅ PASS' : '❌ FAIL'}: ${r.name}</span>
+              <span>${r.pass ? ' PASS' : ' FAIL'}: ${r.name}</span>
               <span class="test-meta">${r.detail}</span>
             </div>
           `).join('');
@@ -952,7 +889,7 @@
    * Deterministic headless verification of GBN and SR logic.
    * ========================================================= */
   function runTests() {
-    console.log('%c🧪 Running CN Arena Protocol Verification Tests...', 'color:#4f9cf9;font-weight:bold;font-size:14px');
+    console.log('%c Running CN Arena Protocol Verification Tests...', 'color:#4f9cf9;font-weight:bold;font-size:14px');
 
     const results = [];
 
@@ -1127,7 +1064,7 @@
     wireButtons();
     wireKeyboardShortcuts();
 
-    console.log('%c🚀 CN Arena (Phase 4 Showcase) Ready. Press Space to play, D for Guided Demo.', 'color:#4f9cf9;font-weight:bold;font-size:14px');
+    console.log('%c CN Arena (Instrument Panel) Ready. Press Space to play, D for Guided Demo.', 'color:#4f9cf9;font-weight:bold;font-size:14px');
   });
 
 })(window);

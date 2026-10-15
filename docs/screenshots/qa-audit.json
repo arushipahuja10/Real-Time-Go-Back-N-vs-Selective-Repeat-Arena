@@ -1,0 +1,145 @@
+{
+  "fonts": [
+    {
+      "family": "Instrument Sans",
+      "status": "loaded"
+    },
+    {
+      "family": "JetBrains Mono",
+      "status": "loaded"
+    }
+  ],
+  "contrasts": [
+    {
+      "text": "text",
+      "surface": "panel",
+      "ratio": 15.06
+    },
+    {
+      "text": "muted",
+      "surface": "panel",
+      "ratio": 5.63
+    },
+    {
+      "text": "subtle",
+      "surface": "panel",
+      "ratio": 8.11
+    },
+    {
+      "text": "muted",
+      "surface": "base",
+      "ratio": 5.98
+    },
+    {
+      "text": "subtle",
+      "surface": "zebra",
+      "ratio": 7.64
+    },
+    {
+      "text": "text",
+      "surface": "narration",
+      "ratio": 13.62
+    },
+    {
+      "text": "data",
+      "surface": "data-fill",
+      "ratio": 7.17
+    },
+    {
+      "text": "ack",
+      "surface": "ack-fill",
+      "ratio": 9.03
+    },
+    {
+      "text": "lost",
+      "surface": "lost-fill",
+      "ratio": 5.38
+    },
+    {
+      "text": "retx",
+      "surface": "retx-fill",
+      "ratio": 7.99
+    },
+    {
+      "text": "buffered",
+      "surface": "buffer-fill",
+      "ratio": 5.54
+    }
+  ],
+  "nativePaint": [
+    {
+      "kind": "data",
+      "expected": 398.9999999999996,
+      "actual": 399,
+      "top": 9,
+      "height": 36
+    },
+    {
+      "kind": "data",
+      "expected": 294.51899999999966,
+      "actual": 294.515625,
+      "top": 9,
+      "height": 36
+    },
+    {
+      "kind": "ack",
+      "expected": 272.9220000000001,
+      "actual": 272.921875,
+      "top": 45,
+      "height": 24
+    },
+    {
+      "kind": "ack",
+      "expected": 416.0129999999999,
+      "actual": 416,
+      "top": 45,
+      "height": 24
+    },
+    {
+      "kind": "data",
+      "expected": 398.9999999999996,
+      "actual": 399,
+      "top": 9,
+      "height": 36
+    },
+    {
+      "kind": "data",
+      "expected": 294.51899999999966,
+      "actual": 294.515625,
+      "top": 9,
+      "height": 36
+    },
+    {
+      "kind": "ack",
+      "expected": 272.9220000000001,
+      "actual": 272.921875,
+      "top": 45,
+      "height": 24
+    },
+    {
+      "kind": "ack",
+      "expected": 416.0129999999999,
+      "actual": 416,
+      "top": 45,
+      "height": 24
+    }
+  ],
+  "offlineTests": [
+    {
+      "name": "Drop Seq 1 Recovery Scope (W=4)",
+      "pass": true,
+      "detail": "GBN resent 3 pkts (expected 3); SR resent 1 pkt (expected 1)."
+    },
+    {
+      "name": "Wasted Bandwidth & Receiver Buffering",
+      "pass": true,
+      "detail": "GBN discarded 2 out-of-order packets; SR buffered intact arrivals (0 wasted)."
+    },
+    {
+      "name": "GBN Cumulative ACK Resilience",
+      "pass": true,
+      "detail": "Dropped ACK[0] safely superseded by cumulative ACK[1] (0 timeouts incurred)."
+    }
+  ],
+  "errors": []
+}
